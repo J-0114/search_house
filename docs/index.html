@@ -945,6 +945,7 @@
         <input type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password" />
       </label>
       <button class="auth-submit" type="submit">Sign In</button>
+      <p style="text-align:center;font-size:.78rem;color:#9ca3af;margin-top:.6rem">Demo mode — any email &amp; password works</p>
     </form>
 
     <!-- Register form -->
@@ -1201,8 +1202,9 @@
   </div>
 </div>
 
+<script src="mock-api.js"></script>
 <script>
-  const API = 'http://127.0.0.1:8000';
+  const API = '__MOCK__';
   let currentPage = 1;
   const limit = 12;
   const _taskCache = {};  // id → task object for edit modal
@@ -2030,6 +2032,7 @@
   const WS_BASE = API.replace(/^http/, 'ws');
 
   function _openCommentWs(id) {
+    if (window._mockMode) return;
     if (_wsConnections[id]) return;
     const token = getToken();
     if (!token) return;
