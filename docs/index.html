@@ -1204,7 +1204,10 @@
 
 <script src="mock-api.js"></script>
 <script>
-  const API = '__MOCK__';
+  // Use real backend when running locally, mock API on GitHub Pages
+  const API = (location.hostname === '127.0.0.1' || location.hostname === 'localhost')
+    ? 'http://127.0.0.1:8000'
+    : '__MOCK__';
   let currentPage = 1;
   const limit = 12;
   const _taskCache = {};  // id → task object for edit modal

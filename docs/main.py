@@ -125,7 +125,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", include_in_schema=False)  # noqa: F811
 async def frontend():
-    return FileResponse("static/index.html")
+    return FileResponse("index.html")
+
+@app.get("/mock-api.js", include_in_schema=False)
+async def mock_api_js():
+    return FileResponse("mock-api.js", media_type="application/javascript")
 
 # Authentication routes
 app.include_router(auth.router)
