@@ -1,0 +1,2327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EDP Field Ops - Task Board</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='a' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' stop-color='%237c3aed'/><stop offset='100%25' stop-color='%230ea5e9'/></linearGradient><linearGradient id='b' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' stop-color='%2322c55e'/><stop offset='100%25' stop-color='%2306b6d4'/></linearGradient></defs><circle cx='32' cy='32' r='32' fill='%23f8fafc'/><circle cx='32' cy='28' r='22' fill='none' stroke='url(%23a)' stroke-width='5'/><circle cx='32' cy='30' r='14' fill='none' stroke='url(%23b)' stroke-width='4'/><circle cx='32' cy='32' r='7' fill='none' stroke='%2306b6d4' stroke-width='3'/><circle cx='32' cy='32' r='3' fill='%2306b6d4'/></svg>" />
+  <link rel="stylesheet" href="/static/leaflet.css" />
+  <script src="/static/leaflet.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 45%, #0c4a6e 100%);
+      color: #fff;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      box-shadow: 0 2px 12px rgba(124,58,237,.35);
+    }
+    header svg { flex-shrink: 0; }
+    header h1 { font-size: 1.25rem; font-weight: 600; }
+    header span { font-size: .85rem; opacity: .7; margin-left: auto; }
+
+    /* ── Controls ── */
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .75rem;
+      padding: 1.25rem 2rem;
+      background: #fff;
+      border-bottom: 1px solid #dde1e7;
+    }
+    .controls input, .controls select {
+      padding: .5rem .75rem;
+      border: 1px solid #cdd2d9;
+      border-radius: 6px;
+      font-size: .9rem;
+      background: #f8f9fb;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .controls input { flex: 1; min-width: 200px; }
+    .controls input:focus, .controls select:focus { border-color: #003c71; }
+    .controls button {
+      padding: .5rem 1.25rem;
+      background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: .9rem;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .controls button:hover { opacity: .88; }
+    .controls button.secondary {
+      background: #ede9fe;
+      color: #5b21b6;
+    }
+    .controls button.secondary:hover { background: #ddd6fe; }
+
+    /* ── Main layout ── */
+    main { padding: 1.5rem 2rem; }
+
+    .meta {
+      font-size: .85rem;
+      color: #6b7280;
+      margin-bottom: 1rem;
+    }
+
+    /* ── Task grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1rem;
+      align-items: start;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      border-left: 4px solid #cdd2d9;
+      box-shadow: 0 1px 4px rgba(0,0,0,.07);
+      display: flex;
+      flex-direction: column;
+      gap: .5rem;
+      transition: box-shadow .15s;
+    }
+    .card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+    .card-clickable {
+      cursor: pointer;
+    }
+    .card-clickable:hover .card-title { color: #7c3aed; text-decoration: underline; text-underline-offset: 2px; }
+
+    .card[data-priority="critical"] { border-left-color: #dc2626; }
+    .card[data-priority="high"]     { border-left-color: #f97316; }
+    .card[data-priority="medium"]   { border-left-color: #eab308; }
+    .card[data-priority="low"]      { border-left-color: #22c55e; }
+
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; }
+    .card-title  { font-weight: 600; font-size: .95rem; line-height: 1.3; flex: 1; }
+    .card-id     { font-size: .75rem; color: #9ca3af; white-space: nowrap; }
+    .btn-edit-card {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: .15rem .3rem;
+      border-radius: 5px;
+      color: #9ca3af;
+      transition: color .15s, background .15s;
+      line-height: 1;
+    }
+    .btn-edit-card:hover { color: #7c3aed; background: #f5f3ff; }
+    .btn-delete-card {
+      background: none; border: none; cursor: pointer;
+      padding: .15rem .3rem; border-radius: 5px;
+      color: #9ca3af; transition: color .15s, background .15s; line-height: 1;
+    }
+    .btn-delete-card:hover { color: #dc2626; background: #fee2e2; }
+    .btn-comment-card {
+      background: none; border: none; cursor: pointer;
+      padding: .15rem .3rem; border-radius: 5px;
+      color: #9ca3af; transition: color .15s, background .15s; line-height: 1;
+      display: flex; align-items: center; gap: .3rem; font-size: .75rem; font-weight: 600;
+    }
+    .btn-comment-card:hover { color: #0ea5e9; background: #e0f2fe; }
+    .btn-comment-card.active { color: #0ea5e9; background: #e0f2fe; }
+
+    /* comments panel */
+    .comments-panel {
+      display: none; margin-top: .75rem;
+      border-top: 1px solid #f3f4f6; padding-top: .75rem;
+    }
+    .comments-panel.open { display: block; }
+    .comment-list { display: flex; flex-direction: column; gap: .5rem; margin-bottom: .6rem; }
+    .comment-item {
+      background: #f9fafb; border-radius: 8px; padding: .5rem .75rem;
+      font-size: .8rem; line-height: 1.4;
+    }
+    .comment-author { font-weight: 600; color: #374151; margin-right: .4rem; }
+    .comment-time { color: #9ca3af; font-size: .72rem; }
+    .comment-body { color: #4b5563; margin-top: .15rem; }
+    .comment-empty { font-size: .8rem; color: #9ca3af; text-align: center; padding: .5rem 0; }
+    .comment-form { display: flex; gap: .4rem; margin-top: .4rem; }
+    .comment-input {
+      flex: 1; font-size: .8rem; padding: .4rem .6rem;
+      border: 1px solid #e5e7eb; border-radius: 8px;
+      background: #f9fafb; outline: none;
+    }
+    .comment-input:focus { border-color: #7c3aed; background: #fff; }
+    .btn-post-comment {
+      padding: .4rem .75rem;
+      background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+      color: #fff; border: none; border-radius: 8px;
+      font-size: .78rem; font-weight: 600; cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-post-comment:hover { opacity: .85; }
+    .btn-delete-comment {
+      background: none; border: none; cursor: pointer;
+      padding: .15rem .25rem; border-radius: 4px;
+      color: #d1d5db; line-height: 0; transition: color .15s, background .15s;
+      flex-shrink: 0;
+    }
+    .btn-delete-comment:hover { color: #dc2626; background: #fee2e2; }
+
+    /* attachments panel */
+    .attachments-panel {
+      display: none; margin-top: .75rem;
+      border-top: 1px solid #f3f4f6; padding-top: .75rem;
+    }
+    .attachments-panel.open { display: block; }
+    .attachment-list { display: flex; flex-direction: column; gap: .35rem; margin-bottom: .6rem; }
+    .attachment-item {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #f9fafb; border-radius: 8px; padding: .4rem .75rem;
+      font-size: .8rem; gap: .5rem;
+    }
+    .attachment-name { flex: 1; color: #374151; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .attachment-size { color: #9ca3af; font-size: .72rem; flex-shrink: 0; }
+    .btn-download {
+      background: none; border: 1px solid #e5e7eb; border-radius: 6px;
+      padding: .2rem .5rem; font-size: .72rem; color: #7c3aed;
+      cursor: pointer; flex-shrink: 0; transition: background .15s;
+    }
+    .btn-download:hover { background: #ede9fe; }
+    .attachment-upload { display: flex; gap: .4rem; margin-top: .4rem; align-items: center; }
+    .attachment-file-input { flex: 1; font-size: .78rem; }
+    .btn-upload {
+      padding: .4rem .75rem;
+      background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+      color: #fff; border: none; border-radius: 8px;
+      font-size: .78rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    .btn-upload:hover { opacity: .85; }
+    .btn-upload:disabled { opacity: .5; cursor: default; }
+    .btn-attach-card {
+      display: inline-flex; align-items: center; gap: .3rem;
+      font-size: .75rem; font-weight: 600; color: #6b7280;
+      background: none; border: none; cursor: pointer; padding: .2rem .35rem;
+      border-radius: 6px; transition: color .15s, background .15s;
+    }
+    .btn-attach-card:hover, .btn-attach-card.active { color: #7c3aed; background: #ede9fe; }
+
+    .card-description { font-size: .85rem; color: #4b5563; line-height: 1.4; }
+
+    .badges { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .badge {
+      font-size: .72rem;
+      font-weight: 600;
+      padding: .2rem .55rem;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    /* status colours */
+    .badge-reported   { background: #fef3c7; color: #92400e; }
+    .badge-assigned   { background: #dbeafe; color: #1e40af; }
+    .badge-in_progress{ background: #ede9fe; color: #5b21b6; }
+    .badge-resolved   { background: #d1fae5; color: #065f46; }
+    .badge-closed     { background: #f3f4f6; color: #374151; }
+    /* priority colours */
+    .badge-critical { background: #fee2e2; color: #991b1b; }
+    .badge-high     { background: #ffedd5; color: #9a3412; }
+    .badge-medium   { background: #fef9c3; color: #713f12; }
+    .badge-low      { background: #dcfce7; color: #14532d; }
+    /* category */
+    .badge-category { background: #e0f2fe; color: #0369a1; }
+
+    .card-footer { font-size: .75rem; color: #9ca3af; display: flex; gap: 1rem; flex-wrap: wrap; }
+
+    /* ── Pagination ── */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      margin-top: 1.5rem;
+    }
+    .pagination button {
+      padding: .4rem .9rem;
+      border: 1px solid #cdd2d9;
+      background: #fff;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: .875rem;
+      transition: background .15s;
+    }
+    .pagination button:disabled { opacity: .4; cursor: default; }
+    .pagination button.active   { background: linear-gradient(135deg, #7c3aed, #0ea5e9); color: #fff; border-color: #7c3aed; }
+    .pagination button:not(:disabled):not(.active):hover { background: #f5f3ff; }
+
+    /* ── Empty / error ── */
+    .empty {
+      text-align: center;
+      color: #6b7280;
+      padding: 4rem 2rem;
+      grid-column: 1 / -1;
+    }
+    .empty svg { opacity: .3; margin-bottom: 1rem; }
+
+    /* ── FAB ── */
+    .fab {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #7c3aed, #06b6d4);
+      color: #fff;
+      border: none;
+      font-size: 1.6rem;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(124,58,237,.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity .15s, transform .15s;
+      z-index: 90;
+    }
+    .fab:hover { opacity: .88; transform: scale(1.08); }
+
+    /* ── New task modal ── */
+    .overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 1.75rem;
+      width: 100%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+    }
+    .modal h2 { font-size: 1.1rem; margin-bottom: 1.25rem; background: linear-gradient(135deg, #7c3aed, #0ea5e9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 700; }
+    .form-row { display: flex; flex-direction: column; gap: .3rem; margin-bottom: .9rem; }
+    .form-row label { font-size: .82rem; font-weight: 600; color: #374151; }
+    .form-row input, .form-row select, .form-row textarea {
+      padding: .5rem .75rem;
+      border: 1px solid #cdd2d9;
+      border-radius: 6px;
+      font-size: .9rem;
+      font-family: inherit;
+      background: #f8f9fb;
+      outline: none;
+    }
+    .form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+      border-color: #7c3aed;
+    }
+    .form-row textarea { resize: vertical; min-height: 80px; }
+    .form-actions { display: flex; gap: .75rem; justify-content: flex-end; margin-top: 1.25rem; }
+    .form-actions button {
+      padding: .5rem 1.25rem;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: .9rem;
+      font-weight: 600;
+    }
+    .btn-cancel { background: #f3f4f6; color: #374151; }
+    .btn-submit { background: linear-gradient(135deg, #7c3aed, #0ea5e9); color: #fff; }
+    .btn-submit:hover { opacity: .88; }
+
+    .toast {
+      position: fixed;
+      top: 1.25rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(-8px);
+      background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+      color: #fff;
+      padding: .75rem 1.5rem;
+      border-radius: 8px;
+      font-size: .875rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,.2);
+      opacity: 0;
+      transition: opacity .3s, transform .3s;
+      z-index: 300;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Location picker ── */
+    .location-picker { display: flex; flex-direction: column; gap: .4rem; }
+    .location-search-row { display: flex; gap: .4rem; }
+    .location-search-row input {
+      flex: 1;
+      padding: .5rem .75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-family: inherit;
+      background: #f9fafb;
+      outline: none;
+    }
+    .location-search-row input:focus { border-color: #7c3aed; background: #fff; }
+    .btn-locate {
+      padding: .5rem .75rem;
+      background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: .85rem;
+      white-space: nowrap;
+      transition: opacity .15s;
+    }
+    .btn-locate:hover { opacity: .85; }
+    #locationMap {
+      height: 220px;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+      display: none;
+    }
+    #locationMap.open { display: block; }
+    .location-coords {
+      font-size: .78rem;
+      color: #6b7280;
+    }
+
+    /* ── Auth screen ── */
+    #authScreen {
+      display: none;
+      position: fixed; inset: 0;
+      background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 35%, #0c4a6e 70%, #164e63 100%);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+    }
+    #authScreen.open { display: flex; }
+    .auth-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.35);
+    }
+    .auth-logo {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      margin-bottom: 1.75rem;
+    }
+    .auth-logo h2 { font-size: 1.15rem; background: linear-gradient(135deg, #7c3aed, #0ea5e9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 700; }
+    .auth-tabs {
+      display: flex;
+      border-bottom: 2px solid #e5e7eb;
+      margin-bottom: 1.5rem;
+    }
+    .auth-tab {
+      flex: 1;
+      padding: .6rem 0;
+      background: none;
+      border: none;
+      font-size: .95rem;
+      font-weight: 600;
+      color: #9ca3af;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color .15s, border-color .15s;
+    }
+    .auth-tab.active { color: #7c3aed; border-bottom-color: #7c3aed; }
+    .auth-form { display: none; flex-direction: column; gap: .9rem; }
+    .auth-form.active { display: flex; }
+    .auth-form label { font-size: .82rem; font-weight: 600; color: #374151; display: flex; flex-direction: column; gap: .3rem; }
+    .auth-form input {
+      padding: .55rem .85rem;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: .95rem;
+      font-family: inherit;
+      background: #f9fafb;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .auth-form input:focus { border-color: #7c3aed; background: #fff; }
+    .auth-submit {
+      margin-top: .25rem;
+      padding: .7rem;
+      background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .auth-submit:hover { opacity: .88; }
+    .auth-error {
+      font-size: .82rem;
+      color: #dc2626;
+      background: #fee2e2;
+      border-radius: 6px;
+      padding: .4rem .75rem;
+      display: none;
+    }
+    .auth-error.show { display: block; }
+
+    /* ── Header user info ── */
+    .header-user {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      font-size: .85rem;
+      position: relative;
+    }
+
+    /* Profile avatar button */
+    .btn-profile {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+      border: 2px solid rgba(255,255,255,.35);
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .85rem;
+      font-weight: 700;
+      letter-spacing: .02em;
+      transition: box-shadow .15s, transform .12s;
+      flex-shrink: 0;
+      overflow: hidden;
+      padding: 0;
+    }
+    .btn-profile:hover {
+      box-shadow: 0 0 0 4px rgba(167,139,250,.35);
+      transform: scale(1.06);
+    }
+    /* img inside profile header button must not intercept pointer events */
+    .btn-profile img,
+    .btn-profile svg { pointer-events: none; }
+    .btn-profile img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+
+    /* Dropdown card */
+    .profile-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      min-width: 240px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.18);
+      z-index: 200;
+      overflow: hidden;
+      animation: dropIn .15s ease;
+    }
+    .profile-dropdown.open { display: block; }
+    @keyframes dropIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .profile-dropdown-top {
+      padding: 1rem 1.1rem .75rem;
+      background: linear-gradient(135deg, #7c3aed 0%, #0ea5e9 100%);
+      color: #fff;
+    }
+    .profile-dropdown-avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: .55rem;
+      overflow: visible;
+      cursor: pointer;
+      position: relative;
+      transition: filter .15s;
+      flex-shrink: 0;
+    }
+    /* clip only the photo/background, not the badge */
+    .profile-dropdown-avatar > svg,
+    .profile-dropdown-avatar > img { border-radius: 50%; overflow: hidden; }
+    .profile-dropdown-avatar:hover { filter: brightness(.8); }
+    .profile-dropdown-avatar #btnRemoveAvatar { opacity: 0; transition: opacity .15s; }
+    .profile-dropdown-avatar:hover #btnRemoveAvatar { opacity: 1; }
+    /* camera overlay on hover */
+    .profile-dropdown-avatar::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z'/%3E%3Ccircle cx='12' cy='13' r='4'/%3E%3C/svg%3E") center/22px no-repeat;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+    .profile-dropdown-avatar:hover::after { opacity: 1; }
+    /* img and svg inside avatar must not intercept pointer events */
+    .profile-dropdown-avatar img,
+    .profile-dropdown-avatar svg { pointer-events: none; }
+    .profile-dropdown-avatar button { pointer-events: auto; }
+    .profile-dropdown-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+    .profile-dropdown-email {
+      font-size: .82rem;
+      font-weight: 600;
+      word-break: break-all;
+      opacity: .95;
+    }
+    .profile-dropdown-role {
+      display: inline-block;
+      margin-top: .3rem;
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      padding: .15rem .5rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,.2);
+    }
+    .profile-dropdown-body {
+      padding: .5rem .5rem;
+    }
+    .profile-dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+      width: 100%;
+      padding: .6rem .75rem;
+      font-size: .85rem;
+      color: #374151;
+      background: none;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: left;
+      transition: background .12s;
+    }
+    .profile-dropdown-item:hover { background: #f3f4f6; }
+    .profile-dropdown-item.danger { color: #dc2626; }
+    .profile-dropdown-item.danger:hover { background: #fee2e2; }
+    .profile-dropdown-divider {
+      height: 1px;
+      background: #e5e7eb;
+      margin: .25rem .5rem;
+    }
+    .btn-cog {
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.25);
+      color: #fff;
+      border-radius: 6px;
+      padding: .3rem .5rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      transition: background .15s;
+    }
+    .btn-cog:hover { background: rgba(124,58,237,.45); }
+
+    /* ── Task Detail slide-over ── */
+    #detailBackdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.4);
+      z-index: 180;
+    }
+    #detailBackdrop.open { display: block; }
+    #detailPanel {
+      position: fixed;
+      top: 0; right: 0; bottom: 0;
+      width: min(600px, 100vw);
+      background: #fff;
+      z-index: 181;
+      display: flex;
+      flex-direction: column;
+      box-shadow: -8px 0 32px rgba(0,0,0,.18);
+      transform: translateX(100%);
+      transition: transform .25s cubic-bezier(.4,0,.2,1);
+    }
+    #detailPanel.open { transform: translateX(0); }
+    .detail-header {
+      padding: 1.1rem 1.4rem;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      align-items: flex-start;
+      gap: .75rem;
+      background: linear-gradient(135deg,#7c3aed,#0ea5e9);
+      color: #fff;
+    }
+    .detail-header-text { flex: 1; min-width: 0; }
+    .detail-header-id {
+      font-size: .75rem;
+      opacity: .7;
+      margin-bottom: .2rem;
+    }
+    .detail-header-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      line-height: 1.3;
+      word-break: break-word;
+    }
+    .btn-detail-close {
+      background: rgba(255,255,255,.15);
+      border: none;
+      color: #fff;
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.1rem;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background .15s;
+    }
+    .btn-detail-close:hover { background: rgba(255,255,255,.3); }
+    .detail-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.2rem 1.4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+    .detail-section-title {
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      margin-bottom: .5rem;
+    }
+    .detail-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .55rem 1rem;
+    }
+    .detail-field label {
+      display: block;
+      font-size: .72rem;
+      color: #9ca3af;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: .15rem;
+    }
+    .detail-field span {
+      font-size: .875rem;
+      color: #111827;
+      font-weight: 500;
+    }
+    .detail-description {
+      font-size: .875rem;
+      color: #374151;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: .75rem 1rem;
+    }
+    .detail-actions {
+      display: flex;
+      gap: .6rem;
+      flex-wrap: wrap;
+    }
+    .btn-detail-edit {
+      flex: 1;
+      padding: .55rem 1rem;
+      background: linear-gradient(135deg,#7c3aed,#0ea5e9);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn-detail-edit:hover { opacity: .85; }
+    .btn-detail-delete {
+      padding: .55rem 1rem;
+      background: #fff;
+      color: #dc2626;
+      border: 1px solid #fca5a5;
+      border-radius: 8px;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-detail-delete:hover { background: #fee2e2; }
+    .detail-audit-row {
+      display: flex;
+      gap: .5rem;
+      align-items: baseline;
+      font-size: .8rem;
+      padding: .35rem 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .detail-audit-row:last-child { border-bottom: none; }
+    .audit-action {
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: .68rem;
+      letter-spacing: .06em;
+      padding: .1rem .4rem;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .audit-action-create  { background: #dcfce7; color: #166534; }
+    .audit-action-update  { background: #dbeafe; color: #1e40af; }
+    .audit-action-delete  { background: #fee2e2; color: #991b1b; }
+    .audit-field  { font-weight: 600; color: #374151; }
+    .audit-change { color: #6b7280; }
+    .audit-arrow  { color: #9ca3af; }
+    .audit-meta   { margin-left: auto; color: #9ca3af; font-size: .75rem; white-space: nowrap; }
+    .detail-comment-list { display: flex; flex-direction: column; gap: .5rem; }
+    .detail-comment { background: #f9fafb; border-radius: 8px; padding: .6rem .85rem; font-size: .85rem; }
+    .detail-comment-author { font-weight: 600; color: #374151; font-size: .78rem; }
+    .detail-comment-body   { color: #111827; margin-top: .2rem; white-space: pre-wrap; }
+    .detail-comment-meta   { font-size: .72rem; color: #9ca3af; margin-top: .25rem; }
+    .detail-comment-form   { display: flex; gap: .5rem; margin-top: .5rem; }
+    .detail-comment-input  { flex: 1; border: 1px solid #d1d5db; border-radius: 8px; padding: .45rem .75rem; font-size: .85rem; }
+    .detail-comment-input:focus { outline: none; border-color: #7c3aed; }
+    .btn-detail-post { padding: .45rem .9rem; background: linear-gradient(135deg,#7c3aed,#0ea5e9); color: #fff; border: none; border-radius: 8px; font-size: .82rem; font-weight: 600; cursor: pointer; }
+    .detail-attach-row {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      padding: .4rem .5rem;
+      border-radius: 8px;
+      font-size: .82rem;
+      background: #f9fafb;
+      margin-bottom: .35rem;
+    }
+    .detail-attach-name { flex: 1; font-weight: 500; word-break: break-all; }
+    .detail-attach-size { color: #9ca3af; font-size: .75rem; white-space: nowrap; }
+    .btn-detail-dl  { background: none; border: none; cursor: pointer; color: #7c3aed; padding: .2rem .3rem; border-radius: 4px; transition: background .12s; }
+    .btn-detail-dl:hover { background: #ede9fe; }
+    .btn-detail-rm  { background: none; border: none; cursor: pointer; color: #dc2626; padding: .2rem .3rem; border-radius: 4px; transition: background .12s; }
+    .btn-detail-rm:hover { background: #fee2e2; }
+    .detail-upload-row { display: flex; gap: .5rem; margin-top: .4rem; }
+    .detail-upload-row input[type=file] { flex: 1; font-size: .8rem; }
+    .btn-detail-upload { padding: .4rem .8rem; background: linear-gradient(135deg,#7c3aed,#0ea5e9); color: #fff; border: none; border-radius: 8px; font-size: .8rem; font-weight: 600; cursor: pointer; }
+    #userPanel {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 150;
+      align-items: center;
+      justify-content: center;
+    }
+    #userPanel.open { display: flex; }
+    .user-panel-card {
+      background: #fff;
+      border-radius: 14px;
+      width: 100%;
+      max-width: 640px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 64px rgba(0,0,0,.3);
+      overflow: hidden;
+    }
+    .user-panel-header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .user-panel-header h2 {
+      font-size: 1rem;
+      background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-weight: 700;
+    }
+    .btn-panel-close {
+      background: none;
+      border: none;
+      font-size: 1.3rem;
+      cursor: pointer;
+      color: #6b7280;
+      line-height: 1;
+      padding: .2rem .4rem;
+      border-radius: 4px;
+    }
+    .btn-panel-close:hover { background: #f3f4f6; }
+    .user-panel-body { overflow-y: auto; padding: 1rem 1.5rem; flex: 1; }
+    .user-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    .user-table th {
+      text-align: left;
+      padding: .5rem .75rem;
+      color: #6b7280;
+      font-weight: 600;
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      border-bottom: 2px solid #e5e7eb;
+    }
+    .user-table td { padding: .65rem .75rem; border-bottom: 1px solid #f3f4f6; vertical-align: middle; }
+    .user-table tr:last-child td { border-bottom: none; }
+    .user-table tr:hover td { background: #fafafa; }
+    .role-select {
+      padding: .3rem .5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: .85rem;
+      background: #f9fafb;
+      cursor: pointer;
+    }
+    .role-select:focus { outline: none; border-color: #7c3aed; }
+    .btn-save-role {
+      padding: .3rem .75rem;
+      background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: .8rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: opacity .15s;
+    }
+    .btn-save-role:hover { opacity: .85; }
+    .badge-role-viewer { background: #f3f4f6; color: #374151; }
+    .badge-role-user   { background: #dbeafe; color: #1e40af; }
+    .badge-role-admin  { background: #ede9fe; color: #5b21b6; }
+  </style>
+</head>
+<body>
+
+<!-- Auth screen -->
+<div id="authScreen" class="open">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg width="44" height="44" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="edpOuter" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#7c3aed"/>
+            <stop offset="100%" stop-color="#0ea5e9"/>
+          </linearGradient>
+          <linearGradient id="edpMid" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#22c55e"/>
+            <stop offset="100%" stop-color="#06b6d4"/>
+          </linearGradient>
+        </defs>
+        <circle cx="32" cy="26" r="22" fill="none" stroke="url(#edpOuter)" stroke-width="6" stroke-linecap="round"/>
+        <circle cx="32" cy="30" r="14" fill="none" stroke="url(#edpMid)" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="32" cy="34" r="7" fill="none" stroke="#06b6d4" stroke-width="3.5"/>
+        <circle cx="32" cy="34" r="3" fill="#06b6d4"/>
+      </svg>
+      <h2>EDP Field Ops</h2>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Sign In</button>
+      <button class="auth-tab" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <!-- Login form -->
+    <form class="auth-form active" id="loginForm" onsubmit="handleLogin(event)">
+      <div class="auth-error" id="loginError"></div>
+      <label>Email
+        <input type="email" id="loginEmail" placeholder="you@edp.pt" required autocomplete="email" />
+      </label>
+      <label>Password
+        <input type="password" id="loginPassword" placeholder="••••••••" required autocomplete="current-password" />
+      </label>
+      <button class="auth-submit" type="submit">Sign In</button>
+    </form>
+
+    <!-- Register form -->
+    <form class="auth-form" id="registerForm" onsubmit="handleRegister(event)">
+      <div class="auth-error" id="registerError"></div>
+      <label>Email
+        <input type="email" id="regEmail" placeholder="you@edp.pt" required autocomplete="email" />
+      </label>
+      <label>Password <small style="font-weight:400;color:#6b7280">(min 8 chars)</small>
+        <input type="password" id="regPassword" placeholder="••••••••" required minlength="8" autocomplete="new-password" />
+      </label>
+      <button class="auth-submit" type="submit">Create Account</button>
+    </form>
+  </div>
+</div>
+
+<header>
+  <svg width="38" height="38" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="hOuter" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#a78bfa"/>
+        <stop offset="100%" stop-color="#38bdf8"/>
+      </linearGradient>
+      <linearGradient id="hMid" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stop-color="#4ade80"/>
+        <stop offset="100%" stop-color="#22d3ee"/>
+      </linearGradient>
+    </defs>
+    <circle cx="32" cy="26" r="22" fill="none" stroke="url(#hOuter)" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="32" cy="30" r="14" fill="none" stroke="url(#hMid)" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="32" cy="34" r="7" fill="none" stroke="#22d3ee" stroke-width="3.5"/>
+    <circle cx="32" cy="34" r="3" fill="#22d3ee"/>
+  </svg>
+  <h1>EDP Field Ops — Task Board</h1>
+  <div class="header-user">
+    <span id="clock"></span>
+    <!-- Profile avatar button -->
+    <button class="btn-profile" id="btnProfile" onclick="toggleProfileDropdown()" title="Account" aria-haspopup="true" aria-expanded="false">
+      <!-- Default person icon; replaced by <img> when a photo is chosen -->
+      <svg id="profileDefaultIcon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    </button>
+    <!-- Hidden file picker for custom photo -->
+    <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="onAvatarFileChosen(event)" />
+    <!-- Dropdown -->
+    <div class="profile-dropdown" id="profileDropdown" role="menu">
+      <div class="profile-dropdown-top">
+        <!-- Clickable avatar: click opens file picker -->
+        <div class="profile-dropdown-avatar" id="dropdownAvatar" onclick="changeAvatar(event)" title="Click to change photo">
+          <svg id="dropdownDefaultIcon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          <button id="btnRemoveAvatar" onclick="removeAvatar(event)" title="Remove photo"
+            style="display:none;position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;border:2px solid #7c3aed;background:#fff;color:#7c3aed;font-size:10px;font-weight:700;line-height:1;cursor:pointer;padding:0;z-index:2;transition:background .12s,color .12s"
+            onmouseover="this.style.background='#7c3aed';this.style.color='#fff'" onmouseout="this.style.background='#fff';this.style.color='#7c3aed'">&times;</button>
+        </div>
+        <button id="btnRemoveAvatar" onclick="removeAvatar(event)" title="Remove photo"
+          style="display:none;margin-top:.35rem;padding:.18rem .55rem;font-size:.72rem;font-weight:600;border:1px solid rgba(255,255,255,.5);border-radius:20px;background:rgba(255,255,255,.15);color:#fff;cursor:pointer;transition:background .15s"
+          onmouseover="this.style.background='rgba(255,255,255,.28)'" onmouseout="this.style.background='rgba(255,255,255,.15)'">
+          ✕ Remove photo
+        </button>
+        <div class="profile-dropdown-email" id="dropdownEmail"></div>
+        <div class="profile-dropdown-role" id="dropdownRole"></div>
+      </div>
+      <div class="profile-dropdown-body">
+        <button id="btnAdminPanel" class="profile-dropdown-item" onclick="openUserPanel(); closeProfileDropdown()" style="display:none">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+          User Management
+        </button>
+        <div id="adminDivider" class="profile-dropdown-divider" style="display:none"></div>
+        <button class="profile-dropdown-item danger" onclick="logout()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Sign Out
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="controls">
+  <input type="text" id="search" placeholder="Search title or description…" />
+  <select id="filterStatus">
+    <option value="">All statuses</option>
+    <option value="reported">Reported</option>
+    <option value="assigned">Assigned</option>
+    <option value="in_progress">In Progress</option>
+    <option value="resolved">Resolved</option>
+    <option value="closed">Closed</option>
+  </select>
+  <select id="filterPriority">
+    <option value="">All priorities</option>
+    <option value="critical">Critical</option>
+    <option value="high">High</option>
+    <option value="medium">Medium</option>
+    <option value="low">Low</option>
+  </select>
+  <select id="filterCategory">
+    <option value="">All categories</option>
+    <option value="outage_response">Outage Response</option>
+    <option value="grid_maintenance">Grid Maintenance</option>
+    <option value="meter_inspection">Meter Inspection</option>
+    <option value="solar_installation">Solar Installation</option>
+    <option value="ev_charging">EV Charging</option>
+    <option value="safety_inspection">Safety Inspection</option>
+    <option value="customer_request">Customer Request</option>
+  </select>
+  <button class="secondary" onclick="resetFilters()">Reset</button>
+  <button onclick="load(1)">Apply Filters</button>
+</div>
+
+<main>
+  <p class="meta" id="meta"></p>
+  <div class="grid" id="grid"></div>
+  <div class="pagination" id="pagination"></div>
+</main>
+
+<!-- Floating action button -->
+<button class="fab" onclick="openModal()" title="New Task">+</button>
+
+<!-- New task modal -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="modalTitle">New Work Order</h2>
+    <div class="form-row">
+      <label>Title *</label>
+      <input id="fTitle" placeholder="e.g. Transformer fault — Almada Norte" />
+    </div>
+    <div class="form-row">
+      <label>Description</label>
+      <textarea id="fDesc" placeholder="What needs to be done?"></textarea>
+    </div>
+    <div class="form-row">
+      <label>Category</label>
+      <select id="fCategory">
+        <option value="grid_maintenance">Grid Maintenance</option>
+        <option value="outage_response">Outage Response</option>
+        <option value="meter_inspection">Meter Inspection</option>
+        <option value="solar_installation">Solar Installation</option>
+        <option value="ev_charging">EV Charging</option>
+        <option value="safety_inspection">Safety Inspection</option>
+        <option value="customer_request">Customer Request</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Status</label>
+      <select id="fStatus">
+        <option value="reported">Reported</option>
+        <option value="assigned">Assigned</option>
+        <option value="in_progress">In Progress</option>
+        <option value="resolved">Resolved</option>
+        <option value="closed">Closed</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Priority</label>
+      <select id="fPriority">
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+        <option value="high">High</option>
+        <option value="critical">Critical</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Location</label>
+      <div class="location-picker">
+        <div class="location-search-row">
+          <input id="fLocation" placeholder="Search address or click the map…" autocomplete="off" />
+          <button type="button" class="btn-locate" onclick="searchLocation()">Search</button>
+          <button type="button" class="btn-locate" onclick="toggleMap()" title="Pick on map">🗺</button>
+        </div>
+        <div id="locationMap"></div>
+        <span class="location-coords" id="locationCoords"></span>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Asset ID</label>
+      <input id="fAsset" placeholder="e.g. TR-9021-STB" />
+    </div>
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-submit" onclick="submitTask()" id="modalSubmitBtn">Create Task</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Delete confirmation dialog -->
+<div id="deleteDialog" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:380px;box-shadow:0 24px 64px rgba(0,0,0,.3);overflow:hidden">
+    <div style="padding:1.5rem 1.5rem 0">
+      <div style="width:48px;height:48px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;margin-bottom:1rem">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+          <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+        </svg>
+      </div>
+      <h3 style="font-size:1rem;font-weight:700;color:#111827;margin:0 0 .4rem">Delete task <span id="deleteDialogId"></span>?</h3>
+      <p style="font-size:.875rem;color:#6b7280;margin:0 0 1.5rem">This action cannot be undone. The task and all its comments will be permanently removed.</p>
+    </div>
+    <div style="display:flex;gap:.75rem;padding:1rem 1.5rem;background:#f9fafb;border-top:1px solid #f3f4f6">
+      <button id="deleteCancelBtn" style="flex:1;padding:.6rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;font-size:.875rem;font-weight:600;cursor:pointer;color:#374151" onmouseover="this.background='#f9fafb'" onclick="closeDeleteDialog()">Cancel</button>
+      <button id="deleteConfirmBtn" style="flex:1;padding:.6rem;border:none;border-radius:8px;background:#dc2626;color:#fff;font-size:.875rem;font-weight:600;cursor:pointer;transition:background .15s" onmouseover="this.style.background='#b91c1c'" onmouseout="this.style.background='#dc2626'">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Task detail slide-over -->
+<div id="detailBackdrop" onclick="closeDetailPanel()"></div>
+<div id="detailPanel">
+  <div class="detail-header">
+    <div class="detail-header-text">
+      <div class="detail-header-id" id="detailId"></div>
+      <div class="detail-header-title" id="detailTitle"></div>
+    </div>
+    <button class="btn-detail-close" onclick="closeDetailPanel()" title="Close">&#x2715;</button>
+  </div>
+  <div class="detail-body" id="detailBody"></div>
+</div>
+
+<!-- User management panel -->
+<div id="userPanel">
+  <div class="user-panel-card">
+    <div class="user-panel-header">
+      <h2>User Management</h2>
+      <button class="btn-panel-close" onclick="closeUserPanel()">&#x2715;</button>
+    </div>
+    <div class="user-panel-body">
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Email</th>
+            <th>Current Role</th>
+            <th>Change Role</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="userTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = 'http://127.0.0.1:8000';
+  let currentPage = 1;
+  const limit = 12;
+  const _taskCache = {};  // id → task object for edit modal
+
+  // ── Auth helpers ─────────────────────────────────────────────
+  function getToken()        { return localStorage.getItem('edp_token'); }
+  function getEmail()        { return localStorage.getItem('edp_email'); }
+  function getRole()         { return localStorage.getItem('edp_role') || 'user'; }
+  function saveAuth(token, email) {
+    localStorage.setItem('edp_token', token);
+    localStorage.setItem('edp_email', email);
+    // Decode role from JWT payload (middle segment)
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      localStorage.setItem('edp_role', payload.role || 'user');
+    } catch (_) { localStorage.setItem('edp_role', 'user'); }
+  }
+  function clearAuth() {
+    localStorage.removeItem('edp_token');
+    localStorage.removeItem('edp_email');
+    localStorage.removeItem('edp_role');
+  }
+
+  function authHeaders() {
+    return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` };
+  }
+
+  function showAuthScreen() {
+    document.getElementById('authScreen').classList.add('open');
+  }
+  function hideAuthScreen() {
+    document.getElementById('authScreen').classList.remove('open');
+    // Populate profile dropdown
+    const email = getEmail();
+    const role  = getRole();
+    document.getElementById('dropdownEmail').textContent   = email;
+    document.getElementById('dropdownRole').textContent    = role.toUpperCase();
+    // FAB and admin controls
+    document.querySelector('.fab').style.display = (role === 'viewer') ? 'none' : 'flex';
+    const isAdmin = role === 'admin';
+    document.getElementById('btnAdminPanel').style.display  = isAdmin ? 'flex' : 'none';
+    document.getElementById('adminDivider').style.display   = isAdmin ? 'block' : 'none';
+    // Load saved avatar for this user
+    loadAvatar();
+  }
+
+  function switchTab(tab) {
+    document.querySelectorAll('.auth-tab').forEach((btn, i) =>
+      btn.classList.toggle('active', (i === 0) === (tab === 'login'))
+    );
+    document.getElementById('loginForm').classList.toggle('active', tab === 'login');
+    document.getElementById('registerForm').classList.toggle('active', tab === 'register');
+    document.getElementById('loginError').classList.remove('show');
+    document.getElementById('registerError').classList.remove('show');
+  }
+
+  function showAuthError(formId, msg) {
+    const el = document.getElementById(formId);
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    const email    = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const res = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (res.ok) {
+      const { access_token } = await res.json();
+      saveAuth(access_token, email);
+      hideAuthScreen();
+      load(1);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showAuthError('loginError', data.detail || 'Invalid email or password.');
+    }
+  }
+
+  async function handleRegister(e) {
+    e.preventDefault();
+    const email    = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPassword').value;
+    const res = await fetch(`${API}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (res.ok) {
+      document.getElementById('loginEmail').value = email;
+      document.getElementById('loginPassword').value = password;
+      switchTab('login');
+      toast('Account created! Signing you in…');
+      await handleLogin({ preventDefault: () => {} });
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showAuthError('registerError', data.detail || 'Registration failed.');
+    }
+  }
+
+  function toggleProfileDropdown() {
+    const dd = document.getElementById('profileDropdown');
+    const btn = document.getElementById('btnProfile');
+    const open = dd.classList.toggle('open');
+    btn.setAttribute('aria-expanded', String(open));
+  }
+  function closeProfileDropdown() {
+    document.getElementById('profileDropdown').classList.remove('open');
+    document.getElementById('btnProfile').setAttribute('aria-expanded', 'false');
+  }
+  // Close when clicking outside
+  document.addEventListener('click', e => {
+    const dd  = document.getElementById('profileDropdown');
+    const btn = document.getElementById('btnProfile');
+    if (dd && dd.classList.contains('open') && !dd.contains(e.target) && e.target !== btn) {
+      closeProfileDropdown();
+    }
+  });
+
+  // ── Profile picture (stored per email in localStorage) ───────
+  function profilePicKey() { return `edp_avatar_${getEmail()}`; }
+
+  function applyAvatar(dataUrl) {
+    // Header button
+    const btn = document.getElementById('btnProfile');
+    const defIcon = document.getElementById('profileDefaultIcon');
+    if (dataUrl) {
+      defIcon.style.display = 'none';
+      let img = btn.querySelector('img');
+      if (!img) { img = document.createElement('img'); img.alt = 'avatar'; btn.appendChild(img); }
+      img.src = dataUrl;
+    } else {
+      defIcon.style.display = '';
+      const img = btn.querySelector('img');
+      if (img) img.remove();
+    }
+    // Dropdown avatar
+    const da = document.getElementById('dropdownAvatar');
+    const daIcon = document.getElementById('dropdownDefaultIcon');
+    const removeBtn = document.getElementById('btnRemoveAvatar');
+    if (dataUrl) {
+      daIcon.style.display = 'none';
+      let img = da.querySelector('img');
+      if (!img) { img = document.createElement('img'); img.alt = 'avatar'; da.appendChild(img); }
+      img.src = dataUrl;
+      if (removeBtn) removeBtn.style.display = 'inline-block';
+    } else {
+      daIcon.style.display = '';
+      const img = da.querySelector('img');
+      if (img) img.remove();
+      if (removeBtn) removeBtn.style.display = 'none';
+    }
+  }
+
+  function loadAvatar() {
+    const saved = localStorage.getItem(profilePicKey());
+    applyAvatar(saved || null);
+  }
+
+  function changeAvatar(e) {
+    // Stop the click from propagating to the outside-click-close listener
+    e.stopPropagation();
+    document.getElementById('avatarFileInput').click();
+  }
+
+  function removeAvatar(e) {
+    e.stopPropagation();
+    localStorage.removeItem(profilePicKey());
+    applyAvatar(null);
+    toast('Profile picture removed');
+  }
+
+  function onAvatarFileChosen(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const dataUrl = ev.target.result;
+      localStorage.setItem(profilePicKey(), dataUrl);
+      applyAvatar(dataUrl);
+      toast('Profile picture updated');
+    };
+    reader.readAsDataURL(file);
+    // reset so choosing the same file again still fires onchange
+    e.target.value = '';
+  }
+
+  function logout() {
+    closeProfileDropdown();
+    clearAuth();
+    document.getElementById('loginEmail').value = '';
+    document.getElementById('loginPassword').value = '';
+    showAuthScreen();
+  }
+
+  // ── Token refresh (re-reads role from DB every 60 s) ─────────
+  async function refreshToken() {
+    if (!getToken()) return;
+    try {
+      const res = await fetch(`${API}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+      });
+      if (res.status === 401) { clearAuth(); showAuthScreen(); return; }
+      if (!res.ok) return;
+      const { access_token } = await res.json();
+      const oldRole = getRole();
+      saveAuth(access_token, getEmail());
+      const newRole = getRole();
+      if (newRole !== oldRole) {
+        // Role changed — update header pill and reload task list
+        const rolePill = document.getElementById('headerRolePill');
+        if (rolePill) rolePill.textContent = newRole;
+        const adminBtn = document.getElementById('btnAdminPanel');
+        if (adminBtn) adminBtn.style.display = newRole === 'admin' ? 'flex' : 'none';
+        toast(`Your role was updated to "${newRole}"`);
+        load(currentPage);
+      }
+    } catch (_) { /* network error — silently skip */ }
+  }
+  setInterval(refreshToken, 60_000);
+
+  // ── Live clock ───────────────────────────────────────────────
+  const clock = document.getElementById('clock');
+  setInterval(() => {
+    clock.textContent = new Date().toLocaleTimeString('pt-PT');
+  }, 1000);
+
+  // ── Fetch & render ──────────────────────────────────────────
+  async function load(page = 1) {
+    currentPage = page;
+    const params = new URLSearchParams({ page, limit });
+    const q        = document.getElementById('search').value.trim();
+    const status   = document.getElementById('filterStatus').value;
+    const priority = document.getElementById('filterPriority').value;
+    const category = document.getElementById('filterCategory').value;
+
+    if (q)        params.set('q', q);
+    if (status)   params.set('status', status);
+    if (priority) params.set('priority', priority);
+    if (category) params.set('category', category);
+
+    try {
+      const res = await fetch(`${API}/tasks?${params}`, { headers: authHeaders() });
+      if (res.status === 401) { logout(); return; }
+      const data = await res.json();
+      render(data);
+    } catch (e) {
+      document.getElementById('grid').innerHTML =
+        `<div class="empty"><p>Could not reach the API at ${API}</p></div>`;
+    }
+  }
+
+  function render({ tasks, total, page, pages }) {
+    document.getElementById('meta').textContent =
+      total === 0 ? 'No tasks found.' : `Showing ${tasks.length} of ${total} tasks`;
+
+    // Cache tasks for edit modal lookup
+    tasks.forEach(t => { _taskCache[t.id] = t; });
+
+    const grid = document.getElementById('grid');
+    if (tasks.length === 0) {
+      grid.innerHTML = `<div class="empty">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        <p>No tasks match your filters.</p>
+      </div>`;
+    } else {
+      grid.innerHTML = tasks.map(card).join('');
+    }
+
+    renderPagination(page, pages);
+    // Preload comment and attachment counts in the background
+    tasks.forEach(t => { preloadCommentCount(t.id); preloadAttachmentCount(t.id); });
+  }
+
+  function card(t) {
+    const catLabel = (t.category || (t.categories && t.categories[0]?.name) || 'uncategorised').replace(/_/g, ' ');
+    const created  = new Date(t.created_at).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' });
+    const role   = getRole();
+    const userId = getCurrentUserId();
+    const canEdit = role === 'admin' || (role === 'user' && t.user_id === userId);
+    const pencil = canEdit ? `
+      <button class="btn-edit-card" title="Edit task" onclick="openEditModal(${t.id})">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+      </button>` : '';
+    const trash = canEdit ? `
+      <button class="btn-delete-card" title="Delete task" onclick="deleteTask(${t.id})">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+          <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+        </svg>
+      </button>` : '';
+    const canComment = role !== 'viewer';
+    return `
+    <div class="card card-clickable" data-priority="${t.priority}" onclick="handleCardClick(event, ${t.id})">
+      <div class="card-header">
+        <span class="card-title">${esc(t.title)}</span>
+        <span class="card-id">#${t.id}</span>
+        ${pencil}${trash}
+      </div>
+      ${t.description ? `<p class="card-description">${esc(t.description)}</p>` : ''}
+      <div class="badges">
+        <span class="badge badge-${t.status}">${t.status.replace(/_/g,' ')}</span>
+        <span class="badge badge-${t.priority}">${t.priority}</span>
+        <span class="badge badge-category">${catLabel}</span>
+      </div>
+      <div class="card-footer">
+        ${t.location ? `<span>&#128205; ${esc(t.location)}</span>` : ''}
+        ${t.asset_id ? `<span>&#128295; ${esc(t.asset_id)}</span>` : ''}
+        <span>&#128336; ${created}</span>
+        <button class="btn-comment-card" id="commentBtn_${t.id}" onclick="toggleComments(${t.id})">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+          </svg>
+          <span id="commentCount_${t.id}">Comments</span>
+        </button>
+        <button class="btn-attach-card" id="attachBtn_${t.id}" onclick="toggleAttachments(${t.id})">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/>
+          </svg>
+          <span id="attachCount_${t.id}">Files</span>
+        </button>
+      </div>
+      <div class="comments-panel" id="commentsPanel_${t.id}">
+        <div class="comment-list" id="commentList_${t.id}"></div>
+        ${canComment ? `
+        <div class="comment-form">
+          <input class="comment-input" id="commentInput_${t.id}" placeholder="Add a comment…" maxlength="1000"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();postComment(${t.id});}" />
+          <button class="btn-post-comment" onclick="postComment(${t.id})">Post</button>
+        </div>` : ''}
+      </div>
+      <div class="attachments-panel" id="attachmentsPanel_${t.id}">
+        <div class="attachment-list" id="attachmentList_${t.id}"></div>
+        ${canComment ? `
+        <div class="attachment-upload">
+          <input type="file" class="attachment-file-input" id="attachFile_${t.id}" />
+          <button class="btn-upload" id="attachUploadBtn_${t.id}" onclick="uploadAttachment(${t.id})">Upload</button>
+        </div>` : ''}
+      </div>
+    </div>`;
+  }
+
+  function renderPagination(page, pages) {
+    const el = document.getElementById('pagination');
+    if (pages <= 1) { el.innerHTML = ''; return; }
+    let html = `<button onclick="load(${page - 1})" ${page === 1 ? 'disabled' : ''}>‹ Prev</button>`;
+    for (let i = 1; i <= pages; i++) {
+      html += `<button class="${i === page ? 'active' : ''}" onclick="load(${i})">${i}</button>`;
+    }
+    html += `<button onclick="load(${page + 1})" ${page === pages ? 'disabled' : ''}>Next ›</button>`;
+    el.innerHTML = html;
+  }
+
+  // ── Card click: open detail unless a button/panel was clicked ──────────
+  function handleCardClick(e, taskId) {
+    if (e.target.closest('button, input, .comment-form, .attachment-upload, .comments-panel, .attachments-panel')) return;
+    openTaskDetail(taskId);
+  }
+
+  // ── Task detail panel ────────────────────────────────────────────────────
+  let _detailTaskId = null;
+
+  async function openTaskDetail(taskId) {
+    _detailTaskId = taskId;
+    const t = _taskCache[taskId];
+    if (!t) return;
+    document.getElementById('detailId').textContent = `Work Order #${t.id}`;
+    document.getElementById('detailTitle').textContent = t.title;
+    document.getElementById('detailBody').innerHTML = '<p style="color:#9ca3af;font-size:.85rem;padding:.5rem 0">Loading…</p>';
+    document.getElementById('detailBackdrop').classList.add('open');
+    document.getElementById('detailPanel').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    await renderDetailBody(t);
+  }
+
+  function closeDetailPanel() {
+    document.getElementById('detailBackdrop').classList.remove('open');
+    document.getElementById('detailPanel').classList.remove('open');
+    document.body.style.overflow = '';
+    _detailTaskId = null;
+  }
+
+  async function renderDetailBody(t) {
+    const role    = getRole();
+    const userId  = getCurrentUserId();
+    const canEdit    = role === 'admin' || (role === 'user' && t.user_id === userId);
+    const canComment = role !== 'viewer';
+    const catLabel = (t.category || (t.categories && t.categories[0]?.name) || 'uncategorised').replace(/_/g,' ');
+    const fmt = d => d ? new Date(d).toLocaleString('pt-PT', {dateStyle:'short', timeStyle:'short'}) : '—';
+
+    // Fetch comments, attachments, audit in parallel
+    const [comments, attachments, audit] = await Promise.all([
+      fetch(`/tasks/${t.id}/comments`,   {headers: authHeaders()}).then(r => r.ok ? r.json() : []),
+      fetch(`/tasks/${t.id}/attachments`,{headers: authHeaders()}).then(r => r.ok ? r.json() : []),
+      fetch(`/tasks/${t.id}/audit`,      {headers: authHeaders()}).then(r => r.ok ? r.json() : []),
+    ]);
+
+    const actionsHtml = canEdit ? `
+      <div class="detail-actions">
+        <button class="btn-detail-edit" onclick="closeDetailPanel(); openEditModal(${t.id})">Edit task</button>
+        <button class="btn-detail-delete" onclick="closeDetailPanel(); deleteTask(${t.id})">Delete</button>
+      </div>` : '';
+
+    const descHtml = t.description
+      ? `<div><div class="detail-section-title">Description</div><div class="detail-description">${esc(t.description)}</div></div>`
+      : '';
+
+    const fieldsHtml = `
+      <div>
+        <div class="detail-section-title">Details</div>
+        <div class="detail-fields">
+          <div class="detail-field"><label>Status</label><span>${t.status.replace(/_/g,' ')}</span></div>
+          <div class="detail-field"><label>Priority</label><span>${t.priority}</span></div>
+          <div class="detail-field"><label>Category</label><span>${catLabel}</span></div>
+          ${t.location  ? `<div class="detail-field"><label>Location</label><span>${esc(t.location)}</span></div>` : ''}
+          ${t.asset_id  ? `<div class="detail-field"><label>Asset ID</label><span>${esc(t.asset_id)}</span></div>` : ''}
+          <div class="detail-field"><label>Created</label><span>${fmt(t.created_at)}</span></div>
+          <div class="detail-field"><label>Updated</label><span>${fmt(t.updated_at)}</span></div>
+        </div>
+      </div>`;
+
+    // Comments
+    const commentItems = comments.map(c => {
+      const canDel = role === 'admin' || c.author === getEmail();
+      return `<div class="detail-comment">
+        <div class="detail-comment-author">${esc(c.author)}</div>
+        <div class="detail-comment-body">${esc(c.body)}</div>
+        <div class="detail-comment-meta">${fmt(c.created_at)}${canDel ? ` &nbsp;·&nbsp; <a href="#" style="color:#dc2626;font-size:.75rem" onclick="event.preventDefault();detailDeleteComment(${t.id},${c.id})">Delete</a>` : ''}</div>
+      </div>`;
+    }).join('');
+    const commentFormHtml = canComment ? `
+      <div class="detail-comment-form">
+        <input class="detail-comment-input" id="detailCommentInput" placeholder="Add a comment…" maxlength="2000"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();detailPostComment(${t.id});}" />
+        <button class="btn-detail-post" onclick="detailPostComment(${t.id})">Post</button>
+      </div>` : '';
+    const commentsHtml = `
+      <div>
+        <div class="detail-section-title">Comments (${comments.length})</div>
+        <div class="detail-comment-list" id="detailCommentList">${commentItems || '<p style="font-size:.82rem;color:#9ca3af">No comments yet.</p>'}</div>
+        ${commentFormHtml}
+      </div>`;
+
+    // Attachments
+    const attachItems = attachments.map(a => {
+      const size = a.size > 1024*1024 ? (a.size/1024/1024).toFixed(1)+' MB' : Math.ceil(a.size/1024)+' KB';
+      const canDel = role === 'admin' || a.uploaded_by === getEmail();
+      return `<div class="detail-attach-row">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+        <span class="detail-attach-name">${esc(a.filename)}</span>
+        <span class="detail-attach-size">${size}</span>
+        <button class="btn-detail-dl" title="Download" onclick="window.open('/tasks/${t.id}/attachments/${a.id}','_blank')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        ${canDel ? `<button class="btn-detail-rm" title="Remove" onclick="detailDeleteAttachment(${t.id},${a.id})">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+        </button>` : ''}
+      </div>`;
+    }).join('');
+    const uploadHtml = canComment ? `
+      <div class="detail-upload-row">
+        <input type="file" id="detailAttachFile" />
+        <button class="btn-detail-upload" onclick="detailUploadAttachment(${t.id})">Upload</button>
+      </div>` : '';
+    const attachHtml = `
+      <div>
+        <div class="detail-section-title">Attachments (${attachments.length})</div>
+        ${attachItems || '<p style="font-size:.82rem;color:#9ca3af;margin-bottom:.4rem">No files attached.</p>'}
+        ${uploadHtml}
+      </div>`;
+
+    // Audit
+    const auditItems = audit.map(a => {
+      const cls = `audit-action audit-action-${a.action}`;
+      let change = '';
+      if (a.field) change = `<span class="audit-field">${esc(a.field)}</span>: <span class="audit-change">${esc(a.old_value ?? '—')} <span class="audit-arrow">→</span> ${esc(a.new_value ?? '—')}</span>`;
+      return `<div class="detail-audit-row">
+        <span class="${cls}">${a.action}</span>
+        ${change}
+        <span style="color:#6b7280;font-size:.8rem;margin-left:.3rem">${esc(a.changed_by)}</span>
+        <span class="audit-meta">${fmt(a.timestamp)}</span>
+      </div>`;
+    }).join('');
+    const auditHtml = `
+      <div>
+        <div class="detail-section-title">Audit trail (${audit.length})</div>
+        ${auditItems || '<p style="font-size:.82rem;color:#9ca3af">No audit records.</p>'}
+      </div>`;
+
+    document.getElementById('detailBody').innerHTML =
+      actionsHtml + descHtml + fieldsHtml + commentsHtml + attachHtml + auditHtml;
+  }
+
+  async function detailPostComment(taskId) {
+    const input = document.getElementById('detailCommentInput');
+    const body  = input.value.trim();
+    if (!body) return;
+    const res = await fetch(`/tasks/${taskId}/comments`, {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ body }),
+    });
+    if (res.ok) { input.value = ''; await renderDetailBody(_taskCache[taskId]); }
+    else toast('Failed to post comment');
+  }
+
+  async function detailDeleteComment(taskId, commentId) {
+    const res = await fetch(`/tasks/${taskId}/comments/${commentId}`, {
+      method: 'DELETE', headers: authHeaders(),
+    });
+    if (res.ok) await renderDetailBody(_taskCache[taskId]);
+    else toast('Failed to delete comment');
+  }
+
+  async function detailUploadAttachment(taskId) {
+    const fi = document.getElementById('detailAttachFile');
+    if (!fi.files.length) return toast('Select a file first');
+    const fd = new FormData(); fd.append('file', fi.files[0]);
+    const res = await fetch(`/tasks/${taskId}/attachments`, {
+      method: 'POST', headers: { Authorization: `Bearer ${getToken()}` }, body: fd,
+    });
+    if (res.ok) { fi.value = ''; await renderDetailBody(_taskCache[taskId]); }
+    else { const d = await res.json().catch(()=>({})); toast(d.detail || 'Upload failed'); }
+  }
+
+  async function detailDeleteAttachment(taskId, fileId) {
+    const res = await fetch(`/tasks/${taskId}/attachments/${fileId}`, {
+      method: 'DELETE', headers: authHeaders(),
+    });
+    if (res.ok) await renderDetailBody(_taskCache[taskId]);
+    else toast('Failed to remove attachment');
+  }
+
+  // ── Filters ─────────────────────────────────────────────────
+  let debounceTimer;
+  document.getElementById('search').addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => load(1), 300);
+  });
+  ['filterStatus','filterPriority','filterCategory'].forEach(id =>
+    document.getElementById(id).addEventListener('change', () => load(1))
+  );
+
+  function resetFilters() {
+    document.getElementById('search').value = '';
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterPriority').value = '';
+    document.getElementById('filterCategory').value = '';
+    load(1);
+  }
+
+  // ── Modal ────────────────────────────────────────────────────
+  let _editingTaskId = null;
+
+  function getCurrentUserId() {
+    const token = getToken();
+    if (!token) return null;
+    try { return JSON.parse(atob(token.split('.')[1])).sub * 1; } catch (_) { return null; }
+  }
+
+  function getCurrentUserEmail() {
+    return localStorage.getItem('edp_email') || null;
+  }
+
+  function relativeTime(dateStr) {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' });
+  }
+
+  function openModal() {
+    _editingTaskId = null;
+    document.getElementById('modalTitle').textContent = 'New Work Order';
+    document.getElementById('modalSubmitBtn').textContent = 'Create Task';
+    clearForm();
+    document.getElementById('overlay').classList.add('open');
+  }
+
+  function openEditModal(taskId) {
+    const t = _taskCache[taskId];
+    if (!t) return;
+    _editingTaskId = t.id;
+    document.getElementById('modalTitle').textContent = `Edit Work Order #${t.id}`;
+    document.getElementById('modalSubmitBtn').textContent = 'Save Changes';
+    document.getElementById('fTitle').value = t.title || '';
+    document.getElementById('fDesc').value = t.description || '';
+    document.getElementById('fCategory').value = t.category || 'grid_maintenance';
+    document.getElementById('fStatus').value   = t.status   || 'open';
+    document.getElementById('fPriority').value = t.priority || 'medium';
+    document.getElementById('fLocation').value = t.location || '';
+    document.getElementById('fAsset').value = t.asset_id || '';
+    document.getElementById('locationCoords').textContent = '';
+    document.getElementById('overlay').classList.add('open');
+  }
+  function closeModal() {
+    document.getElementById('overlay').classList.remove('open');
+    // Collapse map
+    if (_mapOpen) {
+      document.getElementById('locationMap').classList.remove('open');
+      _mapOpen = false;
+    }
+  }
+  document.getElementById('overlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('overlay')) closeModal();
+  });
+
+  async function submitTask() {
+    const title = document.getElementById('fTitle').value.trim();
+    if (title.length < 3) { toast('Title must be at least 3 characters.', true); return; }
+
+    const body = {
+      title,
+      description: document.getElementById('fDesc').value.trim() || null,
+      category:    document.getElementById('fCategory').value,
+      status:      document.getElementById('fStatus').value,
+      priority:    document.getElementById('fPriority').value,
+      location:    document.getElementById('fLocation').value.trim() || null,
+      asset_id:    document.getElementById('fAsset').value.trim() || null,
+    };
+
+    const isEdit = _editingTaskId !== null;
+    const res = await fetch(
+      isEdit ? `${API}/tasks/${_editingTaskId}` : `${API}/tasks`,
+      {
+        method: isEdit ? 'PATCH' : 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (res.status === 401) { logout(); return; }
+
+    if (res.ok) {
+      closeModal();
+      clearForm();
+      toast(isEdit ? 'Task updated successfully.' : 'Task created successfully.');
+      load(currentPage);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      const detail = Array.isArray(err.detail)
+        ? err.detail.map(e => e.msg || JSON.stringify(e)).join('; ')
+        : (err.detail || 'Failed to save task.');
+      toast(detail, true);
+    }
+  }
+
+  function clearForm() {
+    ['fTitle','fDesc','fLocation','fAsset'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('locationCoords').textContent = '';
+    if (_marker) { _marker.remove(); _marker = null; }
+    document.getElementById('fStatus').value   = 'reported';
+    document.getElementById('fPriority').value = 'medium';
+    document.getElementById('fCategory').value = 'grid_maintenance';
+  }
+
+  // ── Toast ────────────────────────────────────────────────────
+  function toast(msg, error = false) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.style.background = error ? '#dc2626' : 'linear-gradient(135deg, #7c3aed, #0ea5e9)';
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 3000);
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Location map picker ─────────────────────────────────────
+  // Fix Leaflet default marker icon path when served from /static/
+  delete L.Icon.Default.prototype._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconUrl:       '/static/marker-icon.png',
+    iconRetinaUrl: '/static/marker-icon-2x.png',
+    shadowUrl:     '/static/marker-shadow.png',
+  });
+
+  let _map = null;
+  let _marker = null;
+  let _mapOpen = false;
+
+  function toggleMap() {
+    const mapEl = document.getElementById('locationMap');
+    _mapOpen = !_mapOpen;
+    mapEl.classList.toggle('open', _mapOpen);
+    if (_mapOpen && !_map) {
+      // Centre on Portugal by default
+      _map = L.map('locationMap').setView([39.5, -8.0], 6);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      }).addTo(_map);
+      _map.on('click', onMapClick);
+      setTimeout(() => _map.invalidateSize(), 100);
+    } else if (_mapOpen) {
+      setTimeout(() => _map.invalidateSize(), 100);
+    }
+  }
+
+  function onMapClick(e) {
+    const { lat, lng } = e.latlng;
+    placeMarker(lat, lng);
+    reverseGeocode(lat, lng);
+  }
+
+  function placeMarker(lat, lng) {
+    if (_marker) _marker.setLatLng([lat, lng]);
+    else _marker = L.marker([lat, lng]).addTo(_map);
+    document.getElementById('locationCoords').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  }
+
+  async function reverseGeocode(lat, lng) {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'pt,en' } });
+      const data = await res.json();
+      if (data.display_name) {
+        document.getElementById('fLocation').value = data.display_name;
+      }
+    } catch (_) { /* silently ignore reverse geocode failures */ }
+  }
+
+  async function searchLocation() {
+    const q = document.getElementById('fLocation').value.trim();
+    if (!q) return;
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1&countrycodes=pt`;
+      const res = await fetch(url, { headers: { 'Accept-Language': 'pt,en' } });
+      const results = await res.json();
+      if (results.length === 0) { toast('No location found for that query.', true); return; }
+      const { lat, lon, display_name } = results[0];
+      document.getElementById('fLocation').value = display_name;
+      // Open map if not already open
+      if (!_mapOpen) toggleMap();
+      setTimeout(() => {
+        _map.setView([+lat, +lon], 15);
+        placeMarker(+lat, +lon);
+      }, 150);
+    } catch (_) { toast('Location search failed.', true); }
+  }
+
+  // Allow pressing Enter in the location field to trigger search
+  document.getElementById('fLocation').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); searchLocation(); }
+  });
+
+  // ── User management panel ────────────────────────────────────
+  async function openUserPanel() {
+    document.getElementById('userPanel').classList.add('open');
+    await loadUsers();
+  }
+
+  function closeUserPanel() {
+    document.getElementById('userPanel').classList.remove('open');
+  }
+
+  document.getElementById('userPanel').addEventListener('click', e => {
+    if (e.target === document.getElementById('userPanel')) closeUserPanel();
+  });
+
+  async function loadUsers() {
+    const tbody = document.getElementById('userTableBody');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:1.5rem">Loading…</td></tr>';
+    const res = await fetch(`${API}/admin/users`, { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) { tbody.innerHTML = '<tr><td colspan="5" style="color:#dc2626">Failed to load users.</td></tr>'; return; }
+    const users = await res.json();
+    const currentId = getCurrentUserId();
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td style="color:#9ca3af">${u.id}</td>
+        <td>${esc(u.email)}</td>
+        <td><span class="badge badge-role-${u.role}">${u.role.toUpperCase()}</span></td>
+        <td>
+          ${u.id === currentId
+            ? '<span style="font-size:.8rem;color:#9ca3af">You</span>'
+            : `<select class="role-select" id="roleSelect_${u.id}">
+                <option value="viewer" ${u.role==='viewer'?'selected':''}>Viewer</option>
+                <option value="user"   ${u.role==='user'  ?'selected':''}>User</option>
+                <option value="admin"  ${u.role==='admin' ?'selected':''}>Admin</option>
+               </select>`
+          }
+        </td>
+        <td>
+          ${u.id !== currentId
+            ? `<button class="btn-save-role" onclick="saveUserRole(${u.id})">Save</button>`
+            : ''}
+        </td>
+      </tr>`).join('');
+  }
+
+  async function saveUserRole(userId) {
+    const select = document.getElementById(`roleSelect_${userId}`);
+    const role = select.value;
+    const res = await fetch(`${API}/admin/users/${userId}/role`, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ role }),
+    });
+    if (res.status === 401) { logout(); return; }
+    if (res.ok) {
+      toast('Role updated.');
+      await loadUsers();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast(err.detail || 'Failed to update role.', true);
+    }
+  }
+
+  // ── Comments ───────────────────────────────────────────────
+
+  const _loadedComments = {}; // cache: taskId -> comments[]
+  const _wsConnections  = {}; // live WS: taskId -> WebSocket
+
+  const WS_BASE = API.replace(/^http/, 'ws');
+
+  function _openCommentWs(id) {
+    if (_wsConnections[id]) return;
+    const token = getToken();
+    if (!token) return;
+    const ws = new WebSocket(`${WS_BASE}/ws/tasks/${id}/comments?token=${encodeURIComponent(token)}`);
+    ws.onmessage = () => {
+      const panel = document.getElementById(`commentsPanel_${id}`);
+      if (panel && panel.classList.contains('open')) {
+        fetchComments(id);
+      } else {
+        delete _loadedComments[id]; // invalidate so next open re-fetches
+      }
+    };
+    ws.onclose = () => { delete _wsConnections[id]; };
+    ws.onerror = () => { ws.close(); };
+    _wsConnections[id] = ws;
+  }
+
+  function _closeCommentWs(id) {
+    const ws = _wsConnections[id];
+    if (ws) { ws.close(); delete _wsConnections[id]; }
+  }
+
+  async function preloadCommentCount(id) {
+    const res = await fetch(`${API}/tasks/${id}/comments`, { headers: authHeaders() });
+    if (!res.ok) return;
+    const comments = await res.json();
+    _loadedComments[id] = comments;
+    const el = document.getElementById(`commentCount_${id}`);
+    if (el) el.textContent = comments.length ? `${comments.length} comment${comments.length > 1 ? 's' : ''}` : 'Comments';
+  }
+
+  async function preloadAttachmentCount(id) {
+    const res = await fetch(`${API}/tasks/${id}/attachments`, { headers: authHeaders() });
+    if (!res.ok) return;
+    const files = await res.json();
+    const el = document.getElementById(`attachCount_${id}`);
+    if (el) el.textContent = files.length ? `${files.length} file${files.length > 1 ? 's' : ''}` : 'Files';
+  }
+
+  async function toggleComments(id) {
+    const panel = document.getElementById(`commentsPanel_${id}`);
+    const btn   = document.getElementById(`commentBtn_${id}`);
+    const isOpen = panel.classList.contains('open');
+    if (isOpen) {
+      panel.classList.remove('open');
+      btn.classList.remove('active');
+      _closeCommentWs(id);
+      return;
+    }
+    panel.classList.add('open');
+    btn.classList.add('active');
+    _openCommentWs(id);
+    if (_loadedComments[id]) {
+      renderComments(id, _loadedComments[id]);
+    } else {
+      await fetchComments(id);
+    }
+  }
+
+  async function fetchComments(id) {
+    const list = document.getElementById(`commentList_${id}`);
+    list.innerHTML = '<div class="comment-empty">Loading…</div>';
+    const res = await fetch(`${API}/tasks/${id}/comments`, { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
+    const comments = res.ok ? await res.json() : [];
+    _loadedComments[id] = comments;
+    renderComments(id, comments);
+  }
+
+  function renderComments(id, comments) {
+    const list    = document.getElementById(`commentList_${id}`);
+    const countEl = document.getElementById(`commentCount_${id}`);
+    const role    = getRole();
+    const email   = getCurrentUserEmail();
+    countEl.textContent = comments.length ? `${comments.length} comment${comments.length > 1 ? 's' : ''}` : 'Comments';
+    if (!comments.length) {
+      list.innerHTML = '<div class="comment-empty">No comments yet.</div>';
+      return;
+    }
+    list.innerHTML = comments.map(c => {
+      const canDelete = role === 'admin' || c.author === email;
+      const deleteBtn = canDelete ? `
+        <button class="btn-delete-comment" title="Delete comment" onclick="deleteComment(${id}, ${c.id})">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+            <path d="M10 11v6M14 11v6"/>
+            <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+          </svg>
+        </button>` : '';
+      return `<div class="comment-item" id="comment_${c.id}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+          <div><span class="comment-author">${esc(c.author)}</span><span class="comment-time" title="${c.created_at}">${relativeTime(c.created_at)}</span></div>
+          ${deleteBtn}
+        </div>
+        <div class="comment-body">${esc(c.body)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  async function postComment(id) {
+    const input = document.getElementById(`commentInput_${id}`);
+    const body  = input.value.trim();
+    if (!body) return;
+    const res = await fetch(`${API}/tasks/${id}/comments`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ body }),
+    });
+    if (res.status === 401) { logout(); return; }
+    if (res.ok) {
+      input.value = '';
+      delete _loadedComments[id];
+      await fetchComments(id);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast(err.detail || 'Failed to post comment.', true);
+    }
+  }
+
+  async function deleteComment(taskId, commentId) {
+    const res = await fetch(`${API}/tasks/${taskId}/comments/${commentId}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (res.status === 401) { logout(); return; }
+    if (res.status === 204) {
+      delete _loadedComments[taskId];
+      await fetchComments(taskId);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast(err.detail || 'Failed to delete comment.', true);
+    }
+  }
+
+  // ── Attachments ────────────────────────────────────────────
+
+  function _fmtBytes(n) {
+    if (n < 1024) return `${n} B`;
+    if (n < 1048576) return `${(n/1024).toFixed(1)} KB`;
+    return `${(n/1048576).toFixed(1)} MB`;
+  }
+
+  async function toggleAttachments(id) {
+    const panel = document.getElementById(`attachmentsPanel_${id}`);
+    const btn   = document.getElementById(`attachBtn_${id}`);
+    const isOpen = panel.classList.contains('open');
+    if (isOpen) {
+      panel.classList.remove('open');
+      btn.classList.remove('active');
+      return;
+    }
+    panel.classList.add('open');
+    btn.classList.add('active');
+    await fetchAttachments(id);
+  }
+
+  async function fetchAttachments(id) {
+    const list = document.getElementById(`attachmentList_${id}`);
+    list.innerHTML = '<div class="comment-empty">Loading…</div>';
+    const res = await fetch(`${API}/tasks/${id}/attachments`, { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
+    const files = res.ok ? await res.json() : [];
+    _renderAttachments(id, files);
+  }
+
+  function _renderAttachments(id, files) {
+    const list  = document.getElementById(`attachmentList_${id}`);
+    const count = document.getElementById(`attachCount_${id}`);
+    count.textContent = files.length ? `${files.length} file${files.length > 1 ? 's' : ''}` : 'Files';
+    if (!files.length) {
+      list.innerHTML = '<div class="comment-empty">No files yet.</div>';
+      return;
+    }
+    const email = getCurrentUserEmail();
+    const role  = getRole();
+    list.innerHTML = files.map(f => {
+      const canDel = role === 'admin' || f.uploaded_by === email;
+      const delBtn = canDel ? `<button class="btn-delete-comment" title="Delete file" onclick="deleteAttachment(${id}, ${f.id})"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg></button>` : '';
+      return `<div class="attachment-item" id="attach_${f.id}">
+        <span class="attachment-name" title="${esc(f.filename)}">${esc(f.filename)}</span>
+        <span class="attachment-size">${_fmtBytes(f.size)}</span>
+        <button class="btn-download" onclick="downloadAttachment(${id}, ${f.id}, '${esc(f.filename)}')">Download</button>
+        ${delBtn}
+      </div>`;
+    }).join('');
+  }
+
+  async function downloadAttachment(taskId, fileId, filename) {
+    const res = await fetch(`${API}/tasks/${taskId}/attachments/${fileId}`, { headers: authHeaders() });
+    if (res.status === 401) { logout(); return; }
+    if (!res.ok) { toast('Download failed.', true); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function deleteAttachment(taskId, fileId) {
+    const res = await fetch(`${API}/tasks/${taskId}/attachments/${fileId}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (res.status === 401) { logout(); return; }
+    if (res.status === 204) {
+      toast('File deleted.');
+      await fetchAttachments(taskId);
+      await preloadAttachmentCount(taskId);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast(err.detail || 'Failed to delete file.', true);
+    }
+  }
+
+  async function uploadAttachment(id) {
+    const input = document.getElementById(`attachFile_${id}`);
+    const btn   = document.getElementById(`attachUploadBtn_${id}`);
+    if (!input.files.length) { toast('Select a file first.', true); return; }
+    const file = input.files[0];
+    if (file.size > 5 * 1024 * 1024) { toast('File exceeds the 5 MB limit.', true); return; }
+    const form = new FormData();
+    form.append('file', file);
+    btn.disabled = true;
+    btn.textContent = 'Uploading…';
+    const res = await fetch(`${API}/tasks/${id}/attachments`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getToken()}` },
+      body: form,
+    });
+    btn.disabled = false;
+    btn.textContent = 'Upload';
+    if (res.status === 401) { logout(); return; }
+    if (res.ok) {
+      input.value = '';
+      toast('File uploaded.');
+      await fetchAttachments(id);
+      await preloadAttachmentCount(id);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast(err.detail || 'Upload failed.', true);
+    }
+  }
+
+  // ── Delete confirmation dialog ──────────────────────────────
+  let _deleteResolve = null;
+
+  function showDeleteDialog(id) {
+    document.getElementById('deleteDialogId').textContent = `#${id}`;
+    const dialog = document.getElementById('deleteDialog');
+    dialog.style.display = 'flex';
+    return new Promise(resolve => {
+      _deleteResolve = resolve;
+      document.getElementById('deleteConfirmBtn').onclick = () => { closeDeleteDialog(); resolve(true); };
+      document.getElementById('deleteCancelBtn').onclick  = () => { closeDeleteDialog(); resolve(false); };
+    });
+  }
+
+  function closeDeleteDialog() {
+    document.getElementById('deleteDialog').style.display = 'none';
+  }
+
+  document.getElementById('deleteDialog').addEventListener('click', e => {
+    if (e.target === document.getElementById('deleteDialog')) closeDeleteDialog();
+  });
+
+  async function deleteTask(id) {
+    const confirmed = await showDeleteDialog(id);
+    if (!confirmed) return;
+    const res = await fetch(`${API}/tasks/${id}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (res.status === 401) { logout(); return; }
+    if (res.status === 204) {
+      toast('Task deleted.');
+      load(currentPage);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast(err.detail || 'Failed to delete task.', true);
+    }
+  }
+
+  // ── Boot ─────────────────────────────────────────────────────
+  if (getToken()) {
+    refreshToken().then(() => {
+      hideAuthScreen();
+      load(1);
+    });
+  } else {
+    showAuthScreen();
+  }
+</script>
+</body>
+</html>

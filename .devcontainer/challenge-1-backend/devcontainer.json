@@ -1,0 +1,26 @@
+{
+	"name": "Challenge 1 - Backend",
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+	"features": {
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "lts"
+		},
+		"ghcr.io/devcontainers/features/python:1": {
+			"version": "3.11"
+		},
+		"ghcr.io/devcontainers/features/github-cli:1": {}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"GitHub.copilot",
+				"GitHub.copilot-chat",
+				"dbaeumer.vscode-eslint",
+				"ms-python.python",
+				"humao.rest-client"
+			]
+		}
+	},
+	"postCreateCommand": "bash scripts/setup-challenge.sh challenge-1-backend && cd challenges/challenge-1-web-api/node-express && npm install; cd /workspaces/gh-copilot-for-enterprise/challenges/challenge-1-web-api/python-fastapi && pip install -r requirements.txt",
+	"remoteUser": "vscode"
+}
